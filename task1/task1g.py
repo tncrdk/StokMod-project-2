@@ -5,7 +5,7 @@ import scipy.stats as stats
 
 lam = 5 / 60  # Scale so both lamda and mu are in minutes^-1.
 mu = 1 / 10
-p = 0.8  # Probability that a patient is urgent
+p = 0.0  # Probability that a patient is urgent
 
 # Number of minutes in 50 days
 T = 50 * 24 * 60
@@ -60,7 +60,6 @@ class UCC:
         self.classification = np.random.binomial(1, self.p, size=self.n_patients)
         print(self.classification)
         self.n_urgent_patients = np.count_nonzero(self.classification)
-        print(self.n_urgent_patients)
         self.n_normal_patients = self.n_patients - self.n_urgent_patients
 
         # We know how many customers arrived in the 50 days, so the arrival times
@@ -197,29 +196,27 @@ def simulate_realization(m, l, p, T) -> tuple[
 
     # Only return the relevant parts of the array, the rest is still zero
     return (
-        (time_N[: iN + 1], N[: iN + 1]),
-        (time_U[: iU + 1], U[: iU + 1]),
-        (time_X[: iX + 1], X[: iX + 1]),
+        (time_N[:iN], N[:iN]),
+        (time_U[:iU], U[:iU]),
+        (time_X[:iX], X[:iX]),
     )
 
 
 def average_time_spent():
-    n, u, x = simulate_realization(mu, lam, p, T)
-    print(n)
-    print(u)
-    print(x)
+    _, u, n = simulate_realization(mu, lam, p, T)
+
     # Construct weights for the weighted average
-    # delta_t = np.zeros_like(t)
-    # delta_t[:-1] = t[1:] - t[:-1]
-    # delta_t[-1] = T - t[-1]
+    n_delta_t = np.zeros_like(n[0])
+    n_delta_t[:-1] = n[0][1:] - n[0][:-1]
+    n_delta_t[-1] = T - n[0][-1]
 
     # L is the average of X weighted by the time X stayed constant
-    # L = np.average(x, 0, delta_t)
+    nL = np.average(n[1], 0, n_delta_t)
     # We start a bit out in the array so the state has "stabilized"
     # L = np.average(x[100:], 0, delta_t[100:])
 
     # By Little's law
-    # return L / lam
+    return nL
 
 
 def CI():
@@ -249,18 +246,19 @@ def task1g():
     stop_time = 12  # minutes in 12 hours
     n, u, x = simulate_realization(mu, lam, p, 12 * 60)
     # (indices,) = np.where(t <= stop_time)
+    print(x)
 
     fig, axs = plt.subplots()
     line1 = plot_steps(axs, x[0] / 60, x[1], stop_time, "blue")
     axs.legend([line1], ["X"])
     axs.grid()
     fig.tight_layout()
-    fig.savefig("./plots/task1b.png")
+    fig.savefig("./plots/task1g.png")
 
-    # avg, lower, upper = CI()
-    # print()
-    # print("Avg: ", avg)
-    # print(f"CI: [{lower:.3f}, {upper:.3f}]")
+    avg, lower, upper = CI()
+    print()
+    print("Avg: ", avg)
+    print(f"CI: [{lower:.3f}, {upper:.3f}]")
 
 
 # average_time_spent()
