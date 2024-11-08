@@ -3,14 +3,7 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 
 
-lam = 5 / 60  # Scale so both lamda and mu are in minutes^-1.
-mu = 1 / 10
-
-# Number of minutes in 50 days
-T = 50 * 24 * 60
-
-
-def simulate_realization():
+def simulate_realization(lam, mu, T):
     # Get how many customers arrived in 50 days
     n_customers = np.random.poisson(lam * T)
     # We know how many customers arrived in the 50 days, so the arrival times
@@ -53,8 +46,9 @@ def simulate_realization():
     return time[: i_a + i_r], X[: i_a + i_r]
 
 
-def average_time_spent():
-    t, x = simulate_realization()
+def average_time_spent(lam, mu, T):
+    t, x = simulate_realization(lam, mu, T)
+    t, x = t[4000:], x[4000:]
     # Construct weights for the weighted average
     delta_t = np.zeros_like(t)
     delta_t[:-1] = t[1:] - t[:-1]
@@ -69,21 +63,23 @@ def average_time_spent():
     return L / lam
 
 
-def CI():
-    L = np.zeros(30)
-    for i in range(30):
-        L[i] = average_time_spent()
+def CI(lam, mu, T):
+    N = 30
+    W = np.zeros(N)
+    for i in range(N):
+        W[i] = average_time_spent(lam, mu, T)
 
-    avg = np.average(L)
-    N = L.size
-    stdev = np.std(L, ddof=1)
+    avg = np.average(W)
+    N = W.size
+    stdev = np.std(W, ddof=1)
     t_alpha = stats.t.ppf(0.975, N - 1)
     lower = avg - t_alpha * stdev / np.sqrt(N)
     upper = avg + t_alpha * stdev / np.sqrt(N)
+
     return avg, lower, upper
 
 
-def plot_steps(axs, x: np.ndarray, y: np.ndarray, end: float, color, **kwargs):
+def plot_steps(axs, x: np.ndarray, y: np.ndarray, end: float, color):
     for i in range(len(x)):
         if i < len(x) - 1:
             line = axs.hlines(y[i], x[i], x[i + 1], linewidth=3, colors=color)
@@ -93,19 +89,27 @@ def plot_steps(axs, x: np.ndarray, y: np.ndarray, end: float, color, **kwargs):
 
 
 def task1b():
-    t, x = simulate_realization()
+    lam = 5 / 60  # Scale so both lamda and mu are in minutes^-1.
+    mu = 1 / 10
+
+    T_12 = 12 * 60  # minutes in 12 hours
+
+    t, x = simulate_realization(lam, mu, T_12)
     t /= 60  # Convert to hours
-    stop_time = 12  # minutes in 12 hours
-    (indices,) = np.where(t <= stop_time)
 
     fig, axs = plt.subplots()
-    line1 = plot_steps(axs, t[indices], x[indices], stop_time, "blue")
-    axs.legend([line1], ["X"])
+    fig.suptitle("Simulation of X(t), 12 hours")
+    line1 = plot_steps(axs, t, x, T_12 / 60, "blue")
+    axs.legend([line1], ["X(t)"])
+    axs.set_xlabel("Time [h]")
+    axs.set_ylabel("Number of people in the UCC")
     axs.grid()
     fig.tight_layout()
-    fig.savefig("./plots/task1b.png")
+    fig.savefig("./task1b.pdf")
 
-    avg, lower, upper = CI()
+    # Number of minutes in 50 days
+    T = 50 * 24 * 60
+    avg, lower, upper = CI(lam, mu, T)
     print()
     print("Avg: ", avg)
     print(f"CI: [{lower:.3f}, {upper:.3f}]")

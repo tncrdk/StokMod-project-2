@@ -3,14 +3,6 @@ import matplotlib.pyplot as plt
 import scipy.stats as stats
 
 
-lam = 5 / 60  # Scale so both lamda and mu are in minutes^-1.
-mu = 1 / 10
-p = 0.0  # Probability that a patient is urgent
-
-# Number of minutes in 50 days
-T = 50 * 24 * 60
-
-
 class Queue:
     def __init__(self, max_length) -> None:
         self.max_length = max_length
@@ -58,7 +50,6 @@ class UCC:
         # Init random variables
         self.n_patients = np.random.poisson(self.l * T)
         self.classification = np.random.binomial(1, self.p, size=self.n_patients)
-        print(self.classification)
         self.n_urgent_patients = np.count_nonzero(self.classification)
         self.n_normal_patients = self.n_patients - self.n_urgent_patients
 
@@ -67,7 +58,7 @@ class UCC:
         self.arrival_times = np.sort(np.random.uniform(0, T, size=self.n_patients))
 
         # The treatment times are exponentially distributed
-        self.treatment_times = np.random.exponential(1 / mu, size=self.n_patients)
+        self.treatment_times = np.random.exponential(1 / self.m, size=self.n_patients)
 
         # Array with treatment_times
         self.priority_queue = Queue(self.n_urgent_patients)
@@ -202,31 +193,45 @@ def simulate_realization(m, l, p, T) -> tuple[
     )
 
 
-def average_time_spent():
-    _, u, n = simulate_realization(mu, lam, p, T)
+def average_time_spent(lam, mu, p, T):
+    n, u, x = simulate_realization(mu, lam, p, T)
 
+    # N
     # Construct weights for the weighted average
     n_delta_t = np.zeros_like(n[0])
     n_delta_t[:-1] = n[0][1:] - n[0][:-1]
     n_delta_t[-1] = T - n[0][-1]
 
-    # L is the average of X weighted by the time X stayed constant
-    nL = np.average(n[1], 0, n_delta_t)
-    # We start a bit out in the array so the state has "stabilized"
-    # L = np.average(x[100:], 0, delta_t[100:])
+    # nL is the average of N weighted by the time X stayed constant
+    nL = np.average(n[1][20:], 0, n_delta_t[20:])
+
+    # U
+    u_delta_t = np.zeros_like(u[0])
+    u_delta_t[:-1] = u[0][1:] - u[0][:-1]
+    u_delta_t[-1] = T - u[0][-1]
+
+    uL = np.average(u[1][20:], 0, u_delta_t[20:])
+
+    # X
+    x_delta_t = np.zeros_like(x[0])
+    x_delta_t[:-1] = x[0][1:] - x[0][:-1]
+    x_delta_t[-1] = T - x[0][-1]
+
+    xL = np.average(x[1][20:], 0, x_delta_t[20:])
 
     # By Little's law
-    return nL
+    return nL / (lam * (1 - p)), uL / (lam * p), xL / lam
 
 
-def CI():
-    L = np.zeros(30)
-    for i in range(30):
-        L[i] = average_time_spent()
+def CI(lam, mu, p, T):
+    N = 30
+    W = np.zeros((3, N))
+    for i in range(N):
+        W[:, i] = average_time_spent(lam, mu, p, T)
+        print(W[:, i])
 
-    avg = np.average(L)
-    N = L.size
-    stdev = np.std(L, ddof=1)
+    avg = np.average(W, axis=1)
+    stdev = np.std(W, ddof=1, axis=1)
     t_alpha = stats.t.ppf(0.975, N - 1)
     lower = avg - t_alpha * stdev / np.sqrt(N)
     upper = avg + t_alpha * stdev / np.sqrt(N)
@@ -243,23 +248,45 @@ def plot_steps(axs, x: np.ndarray, y: np.ndarray, end: float, color, **kwargs):
 
 
 def task1g():
+    lam = 5 / 60  # Scale so both lamda and mu are in minutes^-1.
+    mu = 1 / 10
+    p = 0.8  # Probability that a patient is urgent
+
+    # Number of minutes in 50 days
+    T = 50 * 24 * 60
+
     stop_time = 12  # minutes in 12 hours
-    n, u, x = simulate_realization(mu, lam, p, 12 * 60)
-    # (indices,) = np.where(t <= stop_time)
-    print(x)
+    n, u, x = simulate_realization(mu, lam, p, stop_time * 60)
 
     fig, axs = plt.subplots()
-    line1 = plot_steps(axs, x[0] / 60, x[1], stop_time, "blue")
-    axs.legend([line1], ["X"])
+    line1 = plot_steps(axs, u[0] / 60, u[1], stop_time, "blue")
+    line2 = plot_steps(axs, n[0] / 60, n[1], stop_time, "red")
+    axs.legend([line1, line2], ["U(t)", "N(t)"])
     axs.grid()
+    axs.set_xlabel("Time [h]")
+    axs.set_ylabel("Number of patients in the system")
+    fig.suptitle(r"Time evolution of $X(t)$ and $N(t)$, $p=0.8$")
     fig.tight_layout()
-    fig.savefig("./plots/task1g.png")
+    fig.savefig("./task1g.pdf")
+    plt.show()
 
-    avg, lower, upper = CI()
     print()
-    print("Avg: ", avg)
-    print(f"CI: [{lower:.3f}, {upper:.3f}]")
+    avg, lower, upper = CI(lam, mu, p, T)
+    parameters = ["W_N", "W_U", "W_X"]
+    exact_values = [
+        mu / ((mu - lam) * (mu - p * lam)),
+        1 / (mu - p * lam),
+        1 / (mu - lam),
+    ]
+    print("=" * 105)
+    print(
+        f"{'Parameter':^20}|{'Avg':^20}|{'Lower':^20}|{'Upper':^20}|{'Exact value':^20}|"
+    )
+    print("-" * 105)
+    for i in range(3):
+        print(
+            f"{parameters[i]:^20}|{avg[i]:^20.2f}|{lower[i]:^20.2f}|{upper[i]:^20.2f}|{exact_values[i]:^20.2f}|"
+        )
 
 
-# average_time_spent()
 task1g()
