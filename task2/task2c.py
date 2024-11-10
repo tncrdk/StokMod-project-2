@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.stats as st
 import matplotlib.pyplot as plt
 import utils as u
 
@@ -7,7 +6,7 @@ import utils as u
 def task2c():
     theta_A_arr = np.linspace(0.25, 0.5, 51)
     theta_B_arr = np.array([0.3, 0.33, 0.35, 0.39, 0.41, 0.45])
-    theta_A_arr = theta_A_arr[~np.in1d(theta_A_arr, theta_B_arr)]
+    theta_A_arr = theta_A_arr[~np.isin(theta_A_arr, theta_B_arr)]
     x_B_arr = np.array([0.5, 0.4, 0.32, 0.40, 0.35, 0.6])
     mu_A = np.full_like(theta_A_arr, 0.5)
     mu_B = np.full_like(theta_B_arr, 0.5)
@@ -29,26 +28,37 @@ def task2c():
     lower = np.concatenate((lower, x_B_arr))
     upper = np.concatenate((upper, x_B_arr))
 
-
     sort_indices = np.argsort(theta_A_arr_plot)
     theta_A_arr_plot = theta_A_arr_plot[sort_indices]
     E_AIB_plot = E_AIB_plot[sort_indices]
     lower = lower[sort_indices]
     upper = upper[sort_indices]
 
+    plt.title(r"Prediction of $Y(\theta)$ and $90$% confidence intervals")
     plt.plot(theta_A_arr_plot, E_AIB_plot, label="Y")
     plt.plot(theta_A_arr_plot, lower, label="Lower")
     plt.plot(theta_A_arr_plot, upper, label="Upper")
     plt.legend()
+    plt.grid()
+    plt.xlabel(r"$\theta$")
+    plt.ylabel(r"$Y$")
     plt.savefig("./task2c_CI.pdf")
     plt.show()
     plt.clf()
 
     p_theta = u.P(0.3, E_AIB, V_AIB)
+    plt.title(r"$P(Y(\theta) < 0.3)$ conditioned on the evaluation points")
     plt.plot(theta_A_arr, p_theta)
+    plt.grid()
+    plt.xlabel(r"$\theta$")
+    plt.ylabel(r"$P$")
     plt.savefig("./task2c_p.pdf")
     plt.show()
     plt.clf()
+
+    max_theta = np.argmax(p_theta)
+    max_p = p_theta[max_theta]
+    print(f"\nMax: ({theta_A_arr[max_theta]:.3f}, {max_p:.3f})")
 
 
 task2c()
